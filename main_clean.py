@@ -10,9 +10,9 @@ def clean_data(year: int, phase: str, language: str, dirname: str):
     input_path = f"data/{dirname}/{filename}"
     output_path = f"data/processed/{filename}"
 
-    if os.path.isfile(output_path):
-        print(f"Found cleaned file at {output_path}")
-        return ElementTree.parse(output_path)
+    # if os.path.isfile(output_path):
+    #     print(f"Found cleaned file at {output_path}")
+    #     return ElementTree.parse(output_path)
 
     tree = ElementTree.parse(input_path)
 
