@@ -98,7 +98,7 @@ def mark_data(year:int, phase: str, language: str):
                 print(sentence_text)
                 sentence_text = sentence_text.replace(aspect, symbols[i], 1)
                 previous_positions.append(position)
-                i = i + 1
+                i += 1
 
         double_opinions = []
         new_positions = []
@@ -115,24 +115,20 @@ def mark_data(year:int, phase: str, language: str):
             else:
                 symbol = symbols[j]
                 # Insert aspect back in
-                if symbol[0] == symbol[1]:
-                    start = sentence_text.find(symbol[0]) + 1
-                    end = sentence_text.find(symbol[0]) + 1
-                else:
-                    start = sentence_text.find(symbol[0]) + 1
-                    end = sentence_text.find(symbol[1])
+                start = sentence_text.find(symbol[0]) + 1
+                end = sentence_text.rfind(symbol[1])
                 sentence_text = sentence_text[:start] + aspect + sentence_text[end:]
                 sentence.find(".//text").text = sentence_text
 
                 # Find new positions
                 new_start = sentence_text.find(symbol[0]) + 1
-                new_end = sentence_text.find(symbol[1])
+                new_end = sentence_text.rfind(symbol[1])
                 opinion.attrib['from'] = new_start.__str__()
                 opinion.attrib['to'] = new_end.__str__()
 
                 new_position = [opinion.attrib['from'], opinion.attrib['to']]
                 new_positions.append(new_position)
-                j = j + 1
+                j += 1
 
         for double in double_opinions:
             brother_index = int(double.attrib['from'][8])
@@ -209,13 +205,13 @@ def translate_data(year:int, phase: str, source_language: str, target_language: 
 
                     previous_positions.append([start.__str__(), end.__str__()])
                     previous_opinions.append(opinion)
-                    i = i + 1
+                    i += 1
 
                 else:
                     # sentence.findall(".//Opinion").remove(opinion)
                     opinion.attrib['target'] = "NULL"
 
-                    i = i + 1
+                    i += 1
 
             for double in double_opinions:
                 brother_index = int(double.attrib['from'][8])
@@ -343,7 +339,7 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
                 opinion.attrib['from'] = new_start.__str__()
                 opinion.attrib['to'] = new_end.__str__()
                 new_positions.append([new_start.__str__(), new_end.__str__()])
-                k = k + 1
+                k += 1
 
         for double in double_opinions:
             brother_index = int(double.attrib['from'])
@@ -379,7 +375,7 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
                 opinion.attrib['from'] = new_start.__str__()
                 opinion.attrib['to'] = new_end.__str__()
                 new_positions.append([new_start.__str__(), new_end.__str__()])
-                k = k + 1
+                k += 1
 
         for double in double_opinions:
             brother_index = int(double.attrib['from'])
@@ -389,12 +385,6 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
     tree_source.write(st_path)
     tree_target.write(ts_path)
 
-#Removing symbols and rethinking code
-import xml.etree.ElementTree as ElementTree
-
-def make_symbols():
-    symbols = ["[]", "{}", "<>", "%%", "^^", "``", "~~", "○○"]
-    return symbols
 
 def remove_symbols(filename):
     tree = ElementTree.parse(filename)
@@ -402,28 +392,56 @@ def remove_symbols(filename):
     for sentence in tree.findall(".//sentence"):
         text_element = sentence.find(".//text")
         sentence_text = text_element.text
-
+        already_changed = []
         opinions = sentence.findall(".//Opinion")
-        for symbol in symbols:
-            # Find corresponding opinion
-            if symbols.index(symbol) < len(opinions):
+        # Find corresponding opinion
 
-                opinion = opinions[symbols.index(symbol)]
+        opinions_sorted = sorted(opinions, key = lambda x: int(x.attrib['from']))
 
+        last_from = ''
+        last_to = ''
+        k = 0
+        for opinion in opinions_sorted:
+            if not opinion.attrib['from'] == last_from:
                 # Determine new aspect boundaries
-                new_from = int(opinion.attrib['from']) - 1 - 2 * symbols.index(symbol)
-                new_to = int(opinion.attrib['to']) - 1 - 2 * symbols.index(symbol)
-                opinion.attrib['from'] = new_from.__str__()
-                opinion.attrib['to'] = new_to.__str__()
+                from_int = int(opinion.attrib['from']) - 1 - 2 * k
+                to_int = int(opinion.attrib['to']) - 1 - 2 * k
 
-                # Remove symbols
-                sentence_text = sentence_text.replace(symbol[0], "", 1)
-                sentence_text = sentence_text.replace(symbol[1], "", 1)
+                new_from = from_int.__str__()
+                new_to = to_int.__str__()
+
+                last_from = new_from.__str__()
+                last_to = new_to.__str__()
+                k += 1
+            else:
+                # Same boundaries as previous
+                new_from = last_from.__str__()
+                new_to = last_to.__str__()
+
+            # target = opinion.attrib['target']
+            # category = opinion.attrib['category']
+            # x = "./Opinion[@target = '" + target + "' and @category = '" + category + "']"
+            # print(x)
+            # opinion_updated = sentence.find(x)
+            # opinion_updated.attrib['from'] = new_from
+            # opinion_updated.attrib['to'] = new_to
+
+            for unsorted_opinion in opinions:
+                # find the same opinion in unsorted list and update boundaries
+                target = opinion.attrib['target']
+                category = opinion.attrib['category']
+                if unsorted_opinion.attrib['target'] == target and unsorted_opinion.attrib['category'] == category:
+                    unsorted_opinion.attrib['from'] = new_from
+                    unsorted_opinion.attrib['to'] = new_to
+
+        # Remove symbols
+        for symbol in symbols:
+            sentence_text = sentence_text.replace(symbol[0], "", 1)
+            sentence_text = sentence_text.replace(symbol[1], "", 1)
 
         sentence.find(".//text").text = sentence_text
 
     tree.write(filename)
-
 
 
 def join_datasets(year, phase, source, target):
@@ -454,21 +472,19 @@ def join_datasets(year, phase, source, target):
 
     combined.write(acs_path)
 
-
-    # xml_element_tree = None
-    # insertion_point = None
-    # for xml_file in xml_files:
-    #     data = ElementTree.parse(xml_file)
-    #     # print ElementTree.tostring(data)
-    #     for reviews in data.iter('Reviews'):
-    #         if xml_element_tree is None:
-    #             xml_element_tree = data
-    #             insertion_point = xml_element_tree.find(".//Reviews")
-    #         else:
-    #             insertion_point.extend(reviews)
-    # if xml_element_tree is not None:
-    #     xml_element_tree.write(acs_path)
-
+    xml_element_tree = None
+    insertion_point = None
+    for xml_file in xml_files:
+        data = ElementTree.parse(xml_file)
+        # print ElementTree.tostring(data)
+        for reviews in data.iter('Reviews'):
+            if xml_element_tree is None:
+                xml_element_tree = data
+                insertion_point = xml_element_tree.find(".//Reviews")
+            else:
+                insertion_point.extend(reviews)
+    if xml_element_tree is not None:
+        xml_element_tree.write(acs_path)
 
 
 def main():
@@ -485,8 +501,7 @@ def main():
     source: str = args.source
     target: str = args.target
 
-
-    # mark_data(year, phase, source)
+    mark_data(year, phase, source)
     # translate_data(year, phase, source, target)
     remove_symbols(f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_{target}Marked.xml")
 
