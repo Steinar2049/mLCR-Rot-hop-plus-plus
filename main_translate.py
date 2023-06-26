@@ -278,7 +278,7 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
             double.attrib['from'] = brother_position[0]
             double.attrib['to'] = brother_position[1]
 
-    # Update positions in source to target data
+    # Update positions in target to source data
     for sentence_target in tree_target.findall(".//sentence"):
         target_text = sentence_target.find(".//text").text
         previous_positions = []
@@ -368,14 +368,14 @@ def join_datasets(year, phase, source, target):
     filename_st = f"ABSA{year % 2000}_Restaurants_{phase}_{source}to{target}ACS.xml"
     filename_ts = f"ABSA{year % 2000}_Restaurants_{phase}_{target}to{source}ACS.xml"
 
-    filename_acs = f"ABSA{year % 2000}_Restaurants_{phase}_XABSAfor{target}.xml"
+    filename_acs = f"ABSA{year % 2000}_Restaurants_{phase}_XACSfor{target}.xml"
 
-    source_path = f"data/marked/{filename_source}"
-    target_path = f"data/translated/{filename_target}"
-    st_path = f"data/acs/{filename_st}"
-    ts_path = f"data/acs/{filename_ts}"
+    source_path = f"data/processed/{filename_source}"
+    target_path = f"data/processed/{filename_target}"
+    st_path = f"data/processed/{filename_st}"
+    ts_path = f"data/processed/{filename_ts}"
 
-    acs_path = f"data/acs/{filename_acs}"
+    acs_path = f"data/processed/{filename_acs}"
     xml_files = [source_path, target_path, st_path, ts_path]
 
     root = ElementTree.Element("Reviews")
@@ -405,9 +405,9 @@ def main():
 
     # mark_data(year, phase, source)
     # translate_data(year, phase, source, target)
-    remove_symbols(f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_{target}Translated.xml")
+    # remove_symbols(f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_{target}.xml")
 
-    # aspect_code_switching(year, phase, source, target)
+    aspect_code_switching(year, phase, source, target)
     # join_datasets(year, phase, source, target)
 
 
