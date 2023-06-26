@@ -39,102 +39,33 @@ def mark_data(year:int, phase: str, language: str):
     tree = ElementTree.parse(input_path)
     symbols = make_symbols()
 
-    # for sentence in tree.findall(".//sentence"):
-    #     text_element = sentence.find(".//text")
-    #     sentence_text = text_element.text
-    #     previous_positions = []
-    #     double_opinions = []
-    #
-    #     i = 0
-    #     for opinion in sentence.findall(".//Opinion"):
-    #         symbol = symbols[i]
-    #         start = int(opinion.attrib['from'])
-    #         end = int(opinion.attrib['to'])
-    #         position = [start.__str__(), end.__str__()]
-    #
-    #         if previous_positions.__contains__(position):
-    #             opinion.attrib['from'] = previous_positions.index(position).__str__()
-    #             double_opinions.append(opinion)
-    #         else:
-    #             print(sentence_text[:start])
-    #             print(sentence_text[start:end])
-    #             print(sentence_text[end:])
-    #             sentence_text = sentence_text[:start] + symbol[0] + sentence_text[start:end] + symbol[1] + sentence_text[end:]
-    #             print(sentence_text)
-    #             sentence.find(".//text").text = sentence_text
-    #             previous_positions.append(position)
-    #             i = i + 1
-    #
-    #     for double in double_opinions:
-    #         brother_index = int(double.attrib['from'])
-    #         brother_position = previous_positions[brother_index]
-    #         double.attrib['from'] = brother_position[0]
-    #         double.attrib['to'] = brother_position[1]
-
-
     for sentence in tree.findall(".//sentence"):
         text_element = sentence.find(".//text")
         sentence_text = text_element.text
-        previous_positions = []
-        i = 0
-        for opinion in sentence.findall(".//Opinion"):
-            aspect = opinion.attrib['target']
+        opinions = sentence.findall(".//Opinion")
+        sorted_opinions = sorted(opinions, key= lambda x: int(x.attrib['from']))
+        opinions.sort(key=lambda x: int(x.attrib['from']))
 
-            # Skip empty opinion
-            if aspect == "NULL":
+        last_start = ''
+        k = 0
+        for sorted_opinion in opinions:
+            symbol = symbols[k]
+            start = int(sorted_opinion.attrib['from'])
+            end = int(sorted_opinion.attrib['to'])
+
+            if sorted_opinion.attrib['target'] == "NULL":
                 continue
 
-            position = [opinion.attrib['from'], opinion.attrib['to']]
+            print("target: " + sorted_opinion.attrib['target'] + " start: " + sorted_opinion.attrib['from'] + " last: " + last_start)
+            if not sorted_opinion.attrib['from'] == last_start:
+                start = start + 2*k
+                end = end + 2*k
 
-            # When aspect has multiple opinions, excess opinions are stored for later by replacing their
-            # position with keywords "same" and the string of the index of the aspect that corresponds with it
-            if previous_positions.__contains__(position):
-                for previous_position in previous_positions:
-                    if previous_position == position:
-                        opinion.attrib["from"] = "same as " + previous_positions.index(previous_position).__str__()
+                sentence_text = sentence_text[:start] + symbol[0] + sentence_text[start:end] + symbol[1] + sentence_text[end:]
 
-            # Replace aspect with unique set of brackets, aspects to be inserted back later
-            else:
-                print(sentence_text)
-                sentence_text = sentence_text.replace(aspect, symbols[i], 1)
-                previous_positions.append(position)
-                i += 1
-
-        double_opinions = []
-        new_positions = []
-        j = 0
-        for opinion in sentence.findall(".//Opinion"):
-            aspect = opinion.attrib['target']
-            if aspect == "NULL":
-                continue
-
-            # Keep track of aspects with multiple opinions
-            if opinion.attrib['from'].__contains__("same"):
-                double_opinions.append(opinion)
-
-            else:
-                symbol = symbols[j]
-                # Insert aspect back in
-                start = sentence_text.find(symbol[0]) + 1
-                end = sentence_text.rfind(symbol[1])
-                sentence_text = sentence_text[:start] + aspect + sentence_text[end:]
                 sentence.find(".//text").text = sentence_text
-
-                # Find new positions
-                new_start = sentence_text.find(symbol[0]) + 1
-                new_end = sentence_text.rfind(symbol[1])
-                opinion.attrib['from'] = new_start.__str__()
-                opinion.attrib['to'] = new_end.__str__()
-
-                new_position = [opinion.attrib['from'], opinion.attrib['to']]
-                new_positions.append(new_position)
-                j += 1
-
-        for double in double_opinions:
-            brother_index = int(double.attrib['from'][8])
-            brother = new_positions[brother_index]
-            double.attrib['from'] = brother[0]
-            double.attrib['to'] = brother[1]
+                last_start = start.__str__()
+                k += 1
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     tree.write(output_path)
@@ -396,43 +327,30 @@ def remove_symbols(filename):
         opinions = sentence.findall(".//Opinion")
         # Find corresponding opinion
 
-        opinions_sorted = sorted(opinions, key = lambda x: int(x.attrib['from']))
+        opinions.sort(key=lambda x: int(x.attrib['from']))
 
         last_from = ''
         last_to = ''
         k = 0
-        for opinion in opinions_sorted:
-            if not opinion.attrib['from'] == last_from:
+        for opinion in opinions:
+            if opinion.attrib['from'] != last_from and opinion.attrib['to'] != last_to:
                 # Determine new aspect boundaries
+                last_from = opinion.attrib['from']
+                last_to = opinion.attrib['to']
+
+                print("marked: " + opinion.attrib['from'])
                 from_int = int(opinion.attrib['from']) - 1 - 2 * k
                 to_int = int(opinion.attrib['to']) - 1 - 2 * k
+                print("adjusted: " + from_int.__str__())
+                opinion.attrib['from'] = from_int.__str__()
+                opinion.attrib['to'] = to_int.__str__()
 
-                new_from = from_int.__str__()
-                new_to = to_int.__str__()
 
-                last_from = new_from.__str__()
-                last_to = new_to.__str__()
                 k += 1
             else:
                 # Same boundaries as previous
-                new_from = last_from.__str__()
-                new_to = last_to.__str__()
-
-            # target = opinion.attrib['target']
-            # category = opinion.attrib['category']
-            # x = "./Opinion[@target = '" + target + "' and @category = '" + category + "']"
-            # print(x)
-            # opinion_updated = sentence.find(x)
-            # opinion_updated.attrib['from'] = new_from
-            # opinion_updated.attrib['to'] = new_to
-
-            for unsorted_opinion in opinions:
-                # find the same opinion in unsorted list and update boundaries
-                target = opinion.attrib['target']
-                category = opinion.attrib['category']
-                if unsorted_opinion.attrib['target'] == target and unsorted_opinion.attrib['category'] == category:
-                    unsorted_opinion.attrib['from'] = new_from
-                    unsorted_opinion.attrib['to'] = new_to
+                opinion.attrib['from'] = from_int.__str__()
+                opinion.attrib['to'] = to_int.__str__()
 
         # Remove symbols
         for symbol in symbols:
@@ -458,33 +376,17 @@ def join_datasets(year, phase, source, target):
     ts_path = f"data/acs/{filename_ts}"
 
     acs_path = f"data/acs/{filename_acs}"
-
-    combined = ElementTree
     xml_files = [source_path, target_path, st_path, ts_path]
 
     root = ElementTree.Element("Reviews")
-
+    forest = ElementTree.ElementTree(root)
 
     for file in xml_files:
         tree = ElementTree.parse(file)
         reviews = tree.findall(".//Review")
         root.extend(reviews)
 
-    combined.write(acs_path)
-
-    xml_element_tree = None
-    insertion_point = None
-    for xml_file in xml_files:
-        data = ElementTree.parse(xml_file)
-        # print ElementTree.tostring(data)
-        for reviews in data.iter('Reviews'):
-            if xml_element_tree is None:
-                xml_element_tree = data
-                insertion_point = xml_element_tree.find(".//Reviews")
-            else:
-                insertion_point.extend(reviews)
-    if xml_element_tree is not None:
-        xml_element_tree.write(acs_path)
+    forest.write(acs_path)
 
 
 def main():
@@ -501,9 +403,9 @@ def main():
     source: str = args.source
     target: str = args.target
 
-    mark_data(year, phase, source)
+    # mark_data(year, phase, source)
     # translate_data(year, phase, source, target)
-    remove_symbols(f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_{target}Marked.xml")
+    remove_symbols(f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_{target}Translated.xml")
 
     # aspect_code_switching(year, phase, source, target)
     # join_datasets(year, phase, source, target)
