@@ -300,12 +300,16 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
                 continue
 
             symbol = symbols[k]
-            if not double_opinions.__contains__(opinion):
+            if target_text.__contains__(symbol[0]) and not double_opinions.__contains__(opinion):
+                print("there is symbol: " + target_text)
                 new_start = target_text.find(symbol[0]) + 1
                 new_end = target_text.rfind(symbol[1])
                 opinion.attrib['from'] = new_start.__str__()
                 opinion.attrib['to'] = new_end.__str__()
                 new_positions.append([new_start.__str__(), new_end.__str__()])
+                k += 1
+            elif not target_text.__contains__(symbol[0]):
+                print("no symbol: " + target_text)
                 k += 1
 
         for double in double_opinions:
@@ -363,7 +367,7 @@ def remove_symbols(filename):
 
 
 def join_datasets(year, phase, source, target):
-    filename_source = f"ABSA{year % 2000}_Restaurants_{phase}_{source}Marked.xml"
+    filename_source = f"ABSA{year % 2000}_Restaurants_{phase}_{source}.xml"
     filename_target = f"ABSA{year % 2000}_Restaurants_{phase}_{target}Translated.xml"
     filename_st = f"ABSA{year % 2000}_Restaurants_{phase}_{source}to{target}ACS.xml"
     filename_ts = f"ABSA{year % 2000}_Restaurants_{phase}_{target}to{source}ACS.xml"
@@ -407,8 +411,8 @@ def main():
     # translate_data(year, phase, source, target)
     # remove_symbols(f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_{target}.xml")
 
-    aspect_code_switching(year, phase, source, target)
-    # join_datasets(year, phase, source, target)
+    # aspect_code_switching(year, phase, source, target)
+    join_datasets(year, phase, source, target)
 
 
 if __name__ == "__main__":

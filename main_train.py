@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--year", default=2016, type=int, help="The year of the dataset (2015 or 2016)")
     parser.add_argument("--language", default="English", type=str, help="The language of the dataset")
     parser.add_argument("--phase", default="Train", help="The phase of the dataset (Train or Test)")
-    parser.add_argument("--hops", default=3, type=int,
+    parser.add_argument("--hops", default=2, type=int,
                         help="The number of hops to use in the rotatory attention mechanism")
     parser.add_argument("--ont-hops", default=None, type=int, required=False,
                         help="The number of hops in the ontology to use")
@@ -36,7 +36,7 @@ def main():
     lcr_hops: int = args.hops
     ont_hops: Optional[int] = args.ont_hops
     val_ont_hops: Optional[int] = args.val_ont_hops
-    dropout_rate = 0.6000000000000001
+    dropout_rate = 0.7000000000000001
 
     # learning_rate, dropout_rate, momentum, weight_decay, lcr_hops = hyperparams
 
@@ -50,9 +50,20 @@ def main():
     #French: [0.02, 0.7000000000000001, 0.99, 0.0001, 2]
     #Spanish: [0.07, 0.6000000000000001, 0.9, 0.01, 3]
 
-    learning_rate = 0.07
-    momentum = 0.9
-    weight_decay = 0.01
+    #MABSA:
+        #mLCR-Rot-hop++: [0.01, 0.5, 0.95, 0.001, 4]
+        #trial: (0.06, 0.30000000000000004, 0.85, 1e-05, 4)
+
+    #UABSA
+        #mLCR-Rot-hop-NL++: [0.1, 0.7000000000000001, 0.9, 0.0001, 3]
+        #mLCR-Rot-hop-FR++: [0.01, 0.5, 0.9, 0.0001, 4]
+        #mLCR-Rot-hop-ES++: [0.08, 0.7000000000000001, 0.85, 0.001, 2]
+
+    #XABSA:
+        #[0.05, 0.7000000000000001, 0.85, 0.0001, 2]
+    learning_rate = 0.05
+    momentum = 0.85
+    weight_decay = 0.0001
     n_epochs = 100 #100
     batch_size = 32
 
