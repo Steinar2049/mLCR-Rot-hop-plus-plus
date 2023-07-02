@@ -16,12 +16,21 @@ def clean_data(year: int, phase: str, language: str, dirname: str):
 
     tree = ElementTree.parse(input_path)
 
+    # Remove invalid targets, i.e., with incorrect position
+    n_invalid_removed = 0
     # remove implicit targets
     n_null_removed = 0
     for opinions in tree.findall(".//Opinions"):
+        for opinion in opinions.findall('./Opinion[@from="-1"]'):
+            opinions.remove(opinion)
+            n_invalid_removed += 1
+        for opinion in opinions.findall('./Opinion[@to="-1"]'):
+            opinions.remove(opinion)
+            n_invalid_removed += 1
         for opinion in opinions.findall('./Opinion[@target="NULL"]'):
             opinions.remove(opinion)
             n_null_removed += 1
+    n_total_removed = n_invalid_removed + n_null_removed
 
     # calculate descriptive statistics for remaining opinions
     n = 0
@@ -42,7 +51,9 @@ def clean_data(year: int, phase: str, language: str, dirname: str):
         print(f"\n{filename} does not contain any opinions")
     else:
         print(f"\n{filename}")
+        print(f" Removed  {n_invalid_removed} opinions with invalid position")
         print(f"  Removed {n_null_removed} opinions with target NULL")
+        print(f" Total removed: {n_total_removed}")
         print(f"  Total number of opinions remaining: {n}")
         print(f"  Fraction positive: {100 * n_positive / n:.3f} %")
         print(f"  Fraction negative: {100 * n_negative / n:.3f} %")

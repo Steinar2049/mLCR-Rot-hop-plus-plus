@@ -64,7 +64,7 @@ class HyperOptManager:
             hp.choice('lcr_hops', [2, 3, 4, 8])
         ]
 
-        best_params = fmin(self.objective, space=space, algo=tpe.suggest, max_evals=5, trials=self.trials,
+        best_params = fmin(self.objective, space=space, algo=tpe.suggest, max_evals=1, trials=self.trials,
                            show_progressbar=False)
         print("final best: ")
         print(self.best_hyperparams)
