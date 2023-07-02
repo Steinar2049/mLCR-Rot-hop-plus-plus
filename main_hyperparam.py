@@ -66,7 +66,8 @@ class HyperOptManager:
 
         best_params = fmin(self.objective, space=space, algo=tpe.suggest, max_evals=1, trials=self.trials,
                            show_progressbar=False)
-
+        print("final best: ")
+        print(self.best_hyperparams)
 
     def objective(self, hyperparams):
         self.eval_num += 1
@@ -170,7 +171,8 @@ class HyperOptManager:
         # we want to maximize accuracy, which is equivalent to minimizing -accuracy
         objective_loss = -best_accuracy
         self.check_best_loss(objective_loss, hyperparams, best_state_dict)
-
+        print("current best: ")
+        print(self.best_hyperparams)
         return {
             'loss': loss,
             'status': STATUS_OK,
@@ -178,6 +180,7 @@ class HyperOptManager:
         }
 
     def check_best_loss(self, loss: float, hyperparams, state_dict: tuple[dict, dict]):
+        print("checking best loss")
         if self.best_loss is None or loss < self.best_loss:
             self.best_loss = loss
             self.best_hyperparams = hyperparams
@@ -213,6 +216,7 @@ def main():
 
     opt = HyperOptManager(year=year, phase=phase, language=language, val_ont_hops=val_ont_hops)
     opt.run()
+
 
 
 if __name__ == "__main__":

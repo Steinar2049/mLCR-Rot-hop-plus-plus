@@ -56,7 +56,7 @@ def generate_embeddings(embeddings_layer: EmbeddingsLayer, data: ElementTree, em
 def load_ontology():
     path = download_from_url(
         url="https://raw.githubusercontent.com/KSchouten/Heracles/master/src/main/resources/externalData/ontology.owl-Expanded.owl",
-        path="./data/raw/ontology.owl-Extended.owl")
+        path="Data/raw/ontology.owl-Extended.owl")
     return Graph().parse(path)
 
 

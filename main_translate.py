@@ -6,23 +6,24 @@ import json
 import xml.etree.ElementTree as ElementTree
 
 import deep_translator
-import translators as ts
-from deep_translator import GoogleTranslator, DeeplTranslator
-# requests = "~=2.27"
-# python-lokalise-api = "~=1.6"
-# python-dotenv = "~=0.20"
-# googletrans = "==4.0.0rc1"
-# translators = "~= 5.4"
-# deep-translator = "~=1.9"
-
+from deep_translator import GoogleTranslator
 
 def make_symbols():
-    symbols = ["[]", "{}", "<>", "%%", "^^", "``", "~~", "○○"]
+    """
+    Makes a list of symbols to be used for marking and target extraction
+    @return: a list of predefined symbols
+    """
+    symbols = ["[]", "{}", "<>", "%%", "^^", "``", "~~", "○○" , "††", ]
     return symbols
 
 
 def extract_marked_word(sentence: str, symbol: str):
-    # print("extracting word from: " + sentence + "with symbol: " + symbol)
+    """
+    Finds a word surrounded by specific symbols
+    @param sentence: A string from the XML data
+    @param symbol: Symbol to be used for extraction
+    @return: The word between the symbols
+    """
     substrings = sentence.split(symbol[0])
     substring1 = substrings[1]
     substrings2 = substring1.split(symbol[1])
@@ -31,6 +32,12 @@ def extract_marked_word(sentence: str, symbol: str):
 
 
 def mark_data(year:int, phase: str, language: str):
+    """
+    Marks an XML dataset with special symbols around the aspect terms
+    @param year: The year of the dataset
+    @param phase: The phase of the dataset
+    @param language: The language of the dataset
+    """
     print("Running marking")
     filename = f"ABSA{year % 2000}_Restaurants_{phase}_{language}.xml"
     filename_marked = f"ABSA{year % 2000}_Restaurants_{phase}_{language}Marked.xml"
@@ -39,106 +46,37 @@ def mark_data(year:int, phase: str, language: str):
     tree = ElementTree.parse(input_path)
     symbols = make_symbols()
 
-    # for sentence in tree.findall(".//sentence"):
-    #     text_element = sentence.find(".//text")
-    #     sentence_text = text_element.text
-    #     previous_positions = []
-    #     double_opinions = []
-    #
-    #     i = 0
-    #     for opinion in sentence.findall(".//Opinion"):
-    #         symbol = symbols[i]
-    #         start = int(opinion.attrib['from'])
-    #         end = int(opinion.attrib['to'])
-    #         position = [start.__str__(), end.__str__()]
-    #
-    #         if previous_positions.__contains__(position):
-    #             opinion.attrib['from'] = previous_positions.index(position).__str__()
-    #             double_opinions.append(opinion)
-    #         else:
-    #             print(sentence_text[:start])
-    #             print(sentence_text[start:end])
-    #             print(sentence_text[end:])
-    #             sentence_text = sentence_text[:start] + symbol[0] + sentence_text[start:end] + symbol[1] + sentence_text[end:]
-    #             print(sentence_text)
-    #             sentence.find(".//text").text = sentence_text
-    #             previous_positions.append(position)
-    #             i = i + 1
-    #
-    #     for double in double_opinions:
-    #         brother_index = int(double.attrib['from'])
-    #         brother_position = previous_positions[brother_index]
-    #         double.attrib['from'] = brother_position[0]
-    #         double.attrib['to'] = brother_position[1]
-
-
+    # Iterates over all sentences and adds a symbol around each aspect opinion
     for sentence in tree.findall(".//sentence"):
         text_element = sentence.find(".//text")
         sentence_text = text_element.text
-        previous_positions = []
-        i = 0
-        for opinion in sentence.findall(".//Opinion"):
-            aspect = opinion.attrib['target']
+        opinions = sentence.findall(".//Opinion")
+        opinions.sort(key=lambda x: int(x.attrib['from']))
 
-            # Skip empty opinion
-            if aspect == "NULL":
+        last_start = ''
+        k = 0
+        for sorted_opinion in opinions:
+            # If the sentence contains more aspects than the number of unique symbols, skip the aspect
+            if k >= len(symbols):
+                sorted_opinion.attrib['target'] = "NULL"
                 continue
 
-            position = [opinion.attrib['from'], opinion.attrib['to']]
+            symbol = symbols[k]
+            start = int(sorted_opinion.attrib['from'])
+            end = int(sorted_opinion.attrib['to'])
 
-            # When aspect has multiple opinions, excess opinions are stored for later by replacing their
-            # position with keywords "same" and the string of the index of the aspect that corresponds with it
-            if previous_positions.__contains__(position):
-                for previous_position in previous_positions:
-                    if previous_position == position:
-                        opinion.attrib["from"] = "same as " + previous_positions.index(previous_position).__str__()
-
-            # Replace aspect with unique set of brackets, aspects to be inserted back later
-            else:
-                print(sentence_text)
-                sentence_text = sentence_text.replace(aspect, symbols[i], 1)
-                previous_positions.append(position)
-                i = i + 1
-
-        double_opinions = []
-        new_positions = []
-        j = 0
-        for opinion in sentence.findall(".//Opinion"):
-            aspect = opinion.attrib['target']
-            if aspect == "NULL":
+            if sorted_opinion.attrib['target'] == "NULL":
                 continue
 
-            # Keep track of aspects with multiple opinions
-            if opinion.attrib['from'].__contains__("same"):
-                double_opinions.append(opinion)
+            if not sorted_opinion.attrib['from'] == last_start:
+                start = start + 2*k
+                end = end + 2*k
 
-            else:
-                symbol = symbols[j]
-                # Insert aspect back in
-                if symbol[0] == symbol[1]:
-                    start = sentence_text.find(symbol[0]) + 1
-                    end = sentence_text.find(symbol[0]) + 1
-                else:
-                    start = sentence_text.find(symbol[0]) + 1
-                    end = sentence_text.find(symbol[1])
-                sentence_text = sentence_text[:start] + aspect + sentence_text[end:]
+                sentence_text = sentence_text[:start] + symbol[0] + sentence_text[start:end] + symbol[1] + sentence_text[end:]
+
                 sentence.find(".//text").text = sentence_text
-
-                # Find new positions
-                new_start = sentence_text.find(symbol[0]) + 1
-                new_end = sentence_text.find(symbol[1])
-                opinion.attrib['from'] = new_start.__str__()
-                opinion.attrib['to'] = new_end.__str__()
-
-                new_position = [opinion.attrib['from'], opinion.attrib['to']]
-                new_positions.append(new_position)
-                j = j + 1
-
-        for double in double_opinions:
-            brother_index = int(double.attrib['from'][8])
-            brother = new_positions[brother_index]
-            double.attrib['from'] = brother[0]
-            double.attrib['to'] = brother[1]
+                last_start = start.__str__()
+                k += 1
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     tree.write(output_path)
@@ -146,6 +84,13 @@ def mark_data(year:int, phase: str, language: str):
 
 
 def translate_data(year:int, phase: str, source_language: str, target_language: str):
+    """
+    Translates the texts of a dataset in XML format.
+    @param year: Year of the dataset
+    @param phase: Phase of the dataset
+    @param source_language: Language of the source data
+    @param target_language: Language of the target data
+    """
     print("Running translation")
     filename = f"ABSA{year % 2000}_Restaurants_{phase}_{source_language}Marked.xml"
     filename_translated = f"ABSA{year % 2000}_Restaurants_{phase}_{target_language}Translated.xml"
@@ -153,8 +98,12 @@ def translate_data(year:int, phase: str, source_language: str, target_language: 
     output_path = f"data/translated/{filename_translated}"
     tree = ElementTree.parse(input_path)
 
+    # Checks which language to translate to
+    # Source language is recognized by Google API
     target = ''
-    if target_language == "Dutch":
+    if target_language == "English":
+        target = 'en'
+    elif target_language == "Dutch":
         target = 'nl'
     elif target_language == "French":
         target = 'fr'
@@ -168,6 +117,8 @@ def translate_data(year:int, phase: str, source_language: str, target_language: 
     for sentence in tree.findall(".//sentence"):
             sentence_text = sentence.find(".//text").text
             # In case if the review only contains numeric values
+            if not sentence_text:
+                continue
             if sentence_text.isnumeric():
                 continue
 
@@ -193,13 +144,16 @@ def translate_data(year:int, phase: str, source_language: str, target_language: 
             for opinion in sentence.findall(".//Opinion"):
                 if opinion.attrib['target'] == "NULL":
                     continue
+                # Check if out of symbols
+                if i >= len(symbols):
+                    continue
 
                 symbol = symbols[i]
                 if double_opinions.__contains__(opinion):
                     continue
 
                 # If brackets still in translation, extract aspect and update position
-                elif sentence_text.__contains__(symbol[0]) and symbol.__contains__(symbol[1]):
+                elif sentence_text.__contains__(symbol[0]) and sentence_text.__contains__(symbol[1]):
                     aspect = extract_marked_word(sentence_text, symbol)
                     opinion.attrib['target'] = aspect
                     start = sentence_text.find(symbol[0]) + 1
@@ -209,13 +163,13 @@ def translate_data(year:int, phase: str, source_language: str, target_language: 
 
                     previous_positions.append([start.__str__(), end.__str__()])
                     previous_opinions.append(opinion)
-                    i = i + 1
+                    i += 1
 
                 else:
                     # sentence.findall(".//Opinion").remove(opinion)
                     opinion.attrib['target'] = "NULL"
 
-                    i = i + 1
+                    i += 1
 
             for double in double_opinions:
                 brother_index = int(double.attrib['from'][8])
@@ -224,43 +178,19 @@ def translate_data(year:int, phase: str, source_language: str, target_language: 
                 double.attrib['from'] = brother.attrib['from']
                 double.attrib['to'] = brother.attrib['to']
 
-    # #Removing NULL opinions
-    # # remove implicit targets
-    # n_null_removed = 0
-    # for opinions in tree.findall(".//Opinions"):
-    #     for opinion in opinions.findall('./Opinion[@target="NULL"]'):
-    #         opinions.remove(opinion)
-    #         n_null_removed += 1
-    #
-    # # calculate descriptive statistics for remaining opinions
-    # n = 0
-    # n_positive = 0
-    # n_negative = 0
-    # n_neutral = 0
-    # for opinion in tree.findall(".//Opinion"):
-    #     n += 1
-    #
-    #     if opinion.attrib['polarity'] == "positive":
-    #         n_positive += 1
-    #     elif opinion.attrib['polarity'] == "negative":
-    #         n_negative += 1
-    #     elif opinion.attrib['polarity'] == "neutral":
-    #         n_neutral += 1
-    #
-    # if n == 0:
-    #     print(f"\n{filename} does not contain any opinions")
-    # else:
-    #     print(f"\n{filename}")
-    #     print(f"  Removed {n_null_removed} opinions with target NULL")
-    #     print(f"  Total number of opinions remaining: {n}")
-    #     print(f"  Fraction positive: {100 * n_positive / n:.3f} %")
-    #     print(f"  Fraction negative: {100 * n_negative / n:.3f} %")
-    #     print(f"  Fraction neutral: {100 * n_neutral / n:.3f} %")
-
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     tree.write(output_path)
 
 
 def aspect_code_switching(year: int, phase: str, source: str, target: str):
+    """
+    Performs Aspect Code Switching (ACS), i.e., switches the aspect term of the source data with the corresponding
+    aspect term in the translated data, thereby creating two more datasets.
+    @param year: Year of the dataset
+    @param phase: Phase of the dataset
+    @param source: Language of the source data
+    @param target: Language of the target data
+    """
     print("Running ACS")
     filename_source = f"ABSA{year % 2000}_Restaurants_{phase}_{source}Marked.xml"
     filename_target = f"ABSA{year % 2000}_Restaurants_{phase}_{target}Translated.xml"
@@ -325,6 +255,10 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
         for opinion in sentence_source.findall(".//Opinion"):
             if opinion.attrib["target"] == "NULL":
                 continue
+
+            # Checks whether position of an opinion has been seen before
+            # If so, it saves it as a double opinion
+            # If not it is added as a new opinion to the list of positions seen before
             position = [opinion.attrib['from'], opinion.attrib['to']]
             if previous_positions.__contains__(position):
                 opinion.attrib['from'] = previous_positions.index(position).__str__()
@@ -343,7 +277,7 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
                 opinion.attrib['from'] = new_start.__str__()
                 opinion.attrib['to'] = new_end.__str__()
                 new_positions.append([new_start.__str__(), new_end.__str__()])
-                k = k + 1
+                k += 1
 
         for double in double_opinions:
             brother_index = int(double.attrib['from'])
@@ -351,7 +285,7 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
             double.attrib['from'] = brother_position[0]
             double.attrib['to'] = brother_position[1]
 
-    # Update positions in source to target data
+    # Update positions in target to source data
     for sentence_target in tree_target.findall(".//sentence"):
         target_text = sentence_target.find(".//text").text
         previous_positions = []
@@ -373,70 +307,133 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
                 continue
 
             symbol = symbols[k]
-            if not double_opinions.__contains__(opinion):
+            if target_text.__contains__(symbol[0]) and not double_opinions.__contains__(opinion):
                 new_start = target_text.find(symbol[0]) + 1
                 new_end = target_text.rfind(symbol[1])
                 opinion.attrib['from'] = new_start.__str__()
                 opinion.attrib['to'] = new_end.__str__()
                 new_positions.append([new_start.__str__(), new_end.__str__()])
-                k = k + 1
+                k += 1
+            elif not target_text.__contains__(symbol[0]):
+                k += 1
 
         for double in double_opinions:
             brother_index = int(double.attrib['from'])
             brother_position = new_positions[brother_index]
             double.attrib['from'] = brother_position[0]
             double.attrib['to'] = brother_position[1]
+
+    os.makedirs(os.path.dirname(st_path), exist_ok=True)
+    os.makedirs(os.path.dirname(ts_path), exist_ok=True)
     tree_source.write(st_path)
     tree_target.write(ts_path)
 
-#Removing symbols and rethinking code
+
+def remove_symbols(filename):
+    """
+    Removes special symbols that were added to the data, because the model will not function if these symbols are still
+    in place.
+    @param filename: name of the file fow which the special symbols are to be removed
+    """
+    tree = ElementTree.parse(filename)
+    symbols = make_symbols()
+    for sentence in tree.findall(".//sentence"):
+        text_element = sentence.find(".//text")
+        sentence_text = text_element.text
+        already_changed = []
+        opinions = sentence.findall(".//Opinion")
+        # Find corresponding opinion
+
+        opinions.sort(key=lambda x: int(x.attrib['from']))
+
+        last_from = ''
+        last_to = ''
+        k = 0
+        for opinion in opinions:
+            if opinion.attrib['from'] != last_from and opinion.attrib['to'] != last_to:
+                # Determine new aspect boundaries
+                last_from = opinion.attrib['from']
+                last_to = opinion.attrib['to']
+
+                from_int = int(opinion.attrib['from']) - 1 - 2 * k
+                to_int = int(opinion.attrib['to']) - 1 - 2 * k
+                opinion.attrib['from'] = from_int.__str__()
+                opinion.attrib['to'] = to_int.__str__()
+
+                k += 1
+            else:
+                # Same boundaries as previous
+                opinion.attrib['from'] = from_int.__str__()
+                opinion.attrib['to'] = to_int.__str__()
+
+        # Remove symbols
+        for symbol in symbols:
+            sentence_text = sentence_text.replace(symbol[0], "", 1)
+            sentence_text = sentence_text.replace(symbol[1], "", 1)
+
+        sentence.find(".//text").text = sentence_text
+
+    tree.write(filename)
 
 
+def MLCR_Rot_hop_plus_plus(year, phase):
+    """
+    Combines datasets of different languages into one large Multilingual dataset
+    @param year: year of the dataset
+    @param phase: phase of the dataset
+    """
+    english_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_English.xml"
+    dutch_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_Dutch.xml"
+    french_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_French.xml"
+    spanish_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_Spanish.xml"
 
-def join_datasets(year, phase, source, target):
-    filename_source = f"ABSA{year % 2000}_Restaurants_{phase}_{source}Marked.xml"
-    filename_target = f"ABSA{year % 2000}_Restaurants_{phase}_{target}Translated.xml"
-    filename_st = f"ABSA{year % 2000}_Restaurants_{phase}_{source}to{target}ACS.xml"
-    filename_ts = f"ABSA{year % 2000}_Restaurants_{phase}_{target}to{source}ACS.xml"
+    multilingual_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_Multilingual.xml"
 
-    filename_acs = f"ABSA{year % 2000}_Restaurants_{phase}_XABSAfor{target}.xml"
-
-    source_path = f"data/marked/{filename_source}"
-    target_path = f"data/translated/{filename_target}"
-    st_path = f"data/acs/{filename_st}"
-    ts_path = f"data/acs/{filename_ts}"
-
-    acs_path = f"data/acs/{filename_acs}"
-
-    combined = ElementTree
-    xml_files = [source_path, target_path, st_path, ts_path]
+    xml_files = [english_path, dutch_path, french_path, spanish_path]
 
     root = ElementTree.Element("Reviews")
-
+    forest = ElementTree.ElementTree(root)
 
     for file in xml_files:
         tree = ElementTree.parse(file)
         reviews = tree.findall(".//Review")
         root.extend(reviews)
 
-    combined.write(acs_path)
+    forest.write(multilingual_path)
 
+def join_datasets_ACS(year, phase, source, target):
+    """
+    Joins XML files, given as a list of files
+    @param year:
+    @param phase:
+    @param source:
+    @param target:
+    """
+    filename_source = f"ABSA{year % 2000}_Restaurants_{phase}_{source}.xml"
+    filename_target = f"ABSA{year % 2000}_Restaurants_{phase}_{target}Translated.xml"
+    filename_st = f"ABSA{year % 2000}_Restaurants_{phase}_{source}to{target}ACS.xml"
+    filename_ts = f"ABSA{year % 2000}_Restaurants_{phase}_{target}to{source}ACS.xml"
 
-    # xml_element_tree = None
-    # insertion_point = None
-    # for xml_file in xml_files:
-    #     data = ElementTree.parse(xml_file)
-    #     # print ElementTree.tostring(data)
-    #     for reviews in data.iter('Reviews'):
-    #         if xml_element_tree is None:
-    #             xml_element_tree = data
-    #             insertion_point = xml_element_tree.find(".//Reviews")
-    #         else:
-    #             insertion_point.extend(reviews)
-    # if xml_element_tree is not None:
-    #     xml_element_tree.write(acs_path)
+    filename_acs = f"ABSA{year % 2000}_Restaurants_{phase}_XACSfor{target}.xml"
 
+    source_path = f"data/processed/{filename_source}"
+    target_path = f"data/processed/{filename_target}"
+    st_path = f"data/processed/{filename_st}"
+    ts_path = f"data/processed/{filename_ts}"
 
+    acs_path = f"data/processed/{filename_acs}"
+    xml_files = [source_path, target_path, st_path, ts_path]
+
+    root = ElementTree.Element("Reviews")
+    forest = ElementTree.ElementTree(root)
+
+    #Loops over given files and adds all the Review elements to the new combined XML tree
+    for file in xml_files:
+        tree = ElementTree.parse(file)
+        reviews = tree.findall(".//Review")
+        root.extend(reviews)
+
+    forest.write(acs_path)
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -452,10 +449,12 @@ def main():
     source: str = args.source
     target: str = args.target
 
+    # MLCR_Rot_hop_plus_plus(year, phase)
     # mark_data(year, phase, source)
-    # translate_data(year, phase, source, target)
-    # aspect_code_switching(year, phase, source, target)
-    join_datasets(year, phase, source, target)
+    translate_data(year, phase, source, target)
+    # remove_symbols(f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_{target}.xml")
+    aspect_code_switching(year, phase, source, target)
+    # join_datasets_ACS(year, phase, source, target)
 
 
 if __name__ == "__main__":
