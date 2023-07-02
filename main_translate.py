@@ -6,23 +6,24 @@ import json
 import xml.etree.ElementTree as ElementTree
 
 import deep_translator
-import translators as ts
-from deep_translator import GoogleTranslator, DeeplTranslator
-# requests = "~=2.27"
-# python-lokalise-api = "~=1.6"
-# python-dotenv = "~=0.20"
-# googletrans = "==4.0.0rc1"
-# translators = "~= 5.4"
-# deep-translator = "~=1.9"
-
+from deep_translator import GoogleTranslator
 
 def make_symbols():
+    """
+    Makes a list of symbols to be used for marking and target extraction
+    @return: a list of predefined symbols
+    """
     symbols = ["[]", "{}", "<>", "%%", "^^", "``", "~~", "○○" , "††", ]
     return symbols
 
 
 def extract_marked_word(sentence: str, symbol: str):
-    # print("extracting word from: " + sentence + "with symbol: " + symbol)
+    """
+    Finds a word surrounded by specific symbols
+    @param sentence: A string from the XML data
+    @param symbol: Symbol to be used for extraction
+    @return: The word between the symbols
+    """
     substrings = sentence.split(symbol[0])
     substring1 = substrings[1]
     substrings2 = substring1.split(symbol[1])
@@ -31,6 +32,12 @@ def extract_marked_word(sentence: str, symbol: str):
 
 
 def mark_data(year:int, phase: str, language: str):
+    """
+    Marks an XML dataset with special symbols around the aspect terms
+    @param year: The year of the dataset
+    @param phase: The phase of the dataset
+    @param language: The language of the dataset
+    """
     print("Running marking")
     filename = f"ABSA{year % 2000}_Restaurants_{phase}_{language}.xml"
     filename_marked = f"ABSA{year % 2000}_Restaurants_{phase}_{language}Marked.xml"
@@ -39,6 +46,7 @@ def mark_data(year:int, phase: str, language: str):
     tree = ElementTree.parse(input_path)
     symbols = make_symbols()
 
+    # Iterates over all sentences and adds a symbol around each aspect opinion
     for sentence in tree.findall(".//sentence"):
         text_element = sentence.find(".//text")
         sentence_text = text_element.text
@@ -60,7 +68,6 @@ def mark_data(year:int, phase: str, language: str):
             if sorted_opinion.attrib['target'] == "NULL":
                 continue
 
-            print("target: " + sorted_opinion.attrib['target'] + " start: " + sorted_opinion.attrib['from'] + " last: " + last_start)
             if not sorted_opinion.attrib['from'] == last_start:
                 start = start + 2*k
                 end = end + 2*k
@@ -77,6 +84,13 @@ def mark_data(year:int, phase: str, language: str):
 
 
 def translate_data(year:int, phase: str, source_language: str, target_language: str):
+    """
+    Translates the texts of a dataset in XML format.
+    @param year: Year of the dataset
+    @param phase: Phase of the dataset
+    @param source_language: Language of the source data
+    @param target_language: Language of the target data
+    """
     print("Running translation")
     filename = f"ABSA{year % 2000}_Restaurants_{phase}_{source_language}Marked.xml"
     filename_translated = f"ABSA{year % 2000}_Restaurants_{phase}_{target_language}Translated.xml"
@@ -84,8 +98,12 @@ def translate_data(year:int, phase: str, source_language: str, target_language: 
     output_path = f"data/translated/{filename_translated}"
     tree = ElementTree.parse(input_path)
 
+    # Checks which language to translate to
+    # Source language is recognized by Google API
     target = ''
-    if target_language == "Dutch":
+    if target_language == "English":
+        target = 'en'
+    elif target_language == "Dutch":
         target = 'nl'
     elif target_language == "French":
         target = 'fr'
@@ -99,6 +117,8 @@ def translate_data(year:int, phase: str, source_language: str, target_language: 
     for sentence in tree.findall(".//sentence"):
             sentence_text = sentence.find(".//text").text
             # In case if the review only contains numeric values
+            if not sentence_text:
+                continue
             if sentence_text.isnumeric():
                 continue
 
@@ -158,10 +178,19 @@ def translate_data(year:int, phase: str, source_language: str, target_language: 
                 double.attrib['from'] = brother.attrib['from']
                 double.attrib['to'] = brother.attrib['to']
 
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     tree.write(output_path)
 
 
 def aspect_code_switching(year: int, phase: str, source: str, target: str):
+    """
+    Performs Aspect Code Switching (ACS), i.e., switches the aspect term of the source data with the corresponding
+    aspect term in the translated data, thereby creating two more datasets.
+    @param year: Year of the dataset
+    @param phase: Phase of the dataset
+    @param source: Language of the source data
+    @param target: Language of the target data
+    """
     print("Running ACS")
     filename_source = f"ABSA{year % 2000}_Restaurants_{phase}_{source}Marked.xml"
     filename_target = f"ABSA{year % 2000}_Restaurants_{phase}_{target}Translated.xml"
@@ -279,7 +308,6 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
 
             symbol = symbols[k]
             if target_text.__contains__(symbol[0]) and not double_opinions.__contains__(opinion):
-                print("there is symbol: " + target_text)
                 new_start = target_text.find(symbol[0]) + 1
                 new_end = target_text.rfind(symbol[1])
                 opinion.attrib['from'] = new_start.__str__()
@@ -287,7 +315,6 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
                 new_positions.append([new_start.__str__(), new_end.__str__()])
                 k += 1
             elif not target_text.__contains__(symbol[0]):
-                print("no symbol: " + target_text)
                 k += 1
 
         for double in double_opinions:
@@ -295,11 +322,19 @@ def aspect_code_switching(year: int, phase: str, source: str, target: str):
             brother_position = new_positions[brother_index]
             double.attrib['from'] = brother_position[0]
             double.attrib['to'] = brother_position[1]
+
+    os.makedirs(os.path.dirname(st_path), exist_ok=True)
+    os.makedirs(os.path.dirname(ts_path), exist_ok=True)
     tree_source.write(st_path)
     tree_target.write(ts_path)
 
 
 def remove_symbols(filename):
+    """
+    Removes special symbols that were added to the data, because the model will not function if these symbols are still
+    in place.
+    @param filename: name of the file fow which the special symbols are to be removed
+    """
     tree = ElementTree.parse(filename)
     symbols = make_symbols()
     for sentence in tree.findall(".//sentence"):
@@ -320,13 +355,10 @@ def remove_symbols(filename):
                 last_from = opinion.attrib['from']
                 last_to = opinion.attrib['to']
 
-                print("marked: " + opinion.attrib['from'])
                 from_int = int(opinion.attrib['from']) - 1 - 2 * k
                 to_int = int(opinion.attrib['to']) - 1 - 2 * k
-                print("adjusted: " + from_int.__str__())
                 opinion.attrib['from'] = from_int.__str__()
                 opinion.attrib['to'] = to_int.__str__()
-
 
                 k += 1
             else:
@@ -345,7 +377,11 @@ def remove_symbols(filename):
 
 
 def MLCR_Rot_hop_plus_plus(year, phase):
-
+    """
+    Combines datasets of different languages into one large Multilingual dataset
+    @param year: year of the dataset
+    @param phase: phase of the dataset
+    """
     english_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_English.xml"
     dutch_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_Dutch.xml"
     french_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_French.xml"
@@ -365,29 +401,14 @@ def MLCR_Rot_hop_plus_plus(year, phase):
 
     forest.write(multilingual_path)
 
-
-def SLCR_Rot_hop_plus_plus(year, phase):
-    english_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_English.xml"
-    dutch_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_DutchTranslated.xml"
-    french_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_FrenchTranslated.xml"
-    spanish_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_SpanishTranslated.xml"
-
-    multilingual_path = f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_Translated.xml"
-
-    xml_files = [english_path, dutch_path, french_path, spanish_path]
-
-    root = ElementTree.Element("Reviews")
-    forest = ElementTree.ElementTree(root)
-
-    for file in xml_files:
-        tree = ElementTree.parse(file)
-        reviews = tree.findall(".//Review")
-        root.extend(reviews)
-
-    forest.write(multilingual_path)
-
-
 def join_datasets_ACS(year, phase, source, target):
+    """
+    Joins XML files, given as a list of files
+    @param year:
+    @param phase:
+    @param source:
+    @param target:
+    """
     filename_source = f"ABSA{year % 2000}_Restaurants_{phase}_{source}.xml"
     filename_target = f"ABSA{year % 2000}_Restaurants_{phase}_{target}Translated.xml"
     filename_st = f"ABSA{year % 2000}_Restaurants_{phase}_{source}to{target}ACS.xml"
@@ -406,13 +427,13 @@ def join_datasets_ACS(year, phase, source, target):
     root = ElementTree.Element("Reviews")
     forest = ElementTree.ElementTree(root)
 
+    #Loops over given files and adds all the Review elements to the new combined XML tree
     for file in xml_files:
         tree = ElementTree.parse(file)
         reviews = tree.findall(".//Review")
         root.extend(reviews)
 
     forest.write(acs_path)
-
 
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -430,10 +451,9 @@ def main():
 
     # MLCR_Rot_hop_plus_plus(year, phase)
     # mark_data(year, phase, source)
-    # translate_data(year, phase, source, target)
+    translate_data(year, phase, source, target)
     # remove_symbols(f"data/processed/ABSA{year % 2000}_Restaurants_{phase}_{target}.xml")
-    SLCR_Rot_hop_plus_plus(year, phase)
-    # aspect_code_switching(year, phase, source, target)
+    aspect_code_switching(year, phase, source, target)
     # join_datasets_ACS(year, phase, source, target)
 
 
